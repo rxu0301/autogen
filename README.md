@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # 숏폼 콘텐츠 에이전트 서비스
 
 Ollama 로컬 LLM을 활용해 TikTok·Instagram Reels·YouTube Shorts 등 숏폼 플랫폼에 최적화된 콘텐츠 기획안을 자동 생성하는 풀스택 에이전트 서비스입니다.
@@ -272,3 +273,6 @@ docker compose restart ollama
 
 **Pinecone 오류**  
 `PINECONE_API_KEY`가 설정되지 않으면 Pinecone 연동이 비활성화되고 ChromaDB만 사용됩니다. 이는 정상 동작입니다.
+=======
+# autogen
+>>>>>>> e0bbc09e45451e328dd359819aee06ce4edd1b9e
