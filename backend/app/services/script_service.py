@@ -334,17 +334,110 @@ def _build_fallback_text(
 def _fallback_scripts(
     title: str, content: str, duration: str, language: str = "ko"
 ) -> List[ScriptVersion]:
-    base = (title + ". " + content) if content else title
-    scripts = []
-    for s in STYLES:
-        script = _build_fallback_text(s["version"], s["style_ko"], duration, language, base)
-        scripts.append(ScriptVersion(
-            version=s["version"],
-            style=s["style_ko"],
-            script=script,
-            word_count=len(script),
-        ))
-    return scripts
+    """뉴스 내용을 실제로 활용하는 고품질 폴백 스크립트."""
+    cfg = _get_cfg(duration)
+    dur_key = _DURATION_KEY.get(duration, "30s")
+    body = (content.strip() if content.strip() else title)[:200]
+
+    if language == "ko":
+        min_c = cfg["ko"]["min"]
+        max_c = cfg["ko"]["max"]
+
+        # 분량별 추가 문장 풀
+        extras_by_dur = {
+            "20s": [],
+            "30s": [
+                f"전문가들은 이번 {title} 사안이 업계에 중요한 영향을 미칠 것으로 분석합니다.",
+                "관련 기관은 공식 입장을 조만간 발표할 예정입니다.",
+            ],
+            "1min": [
+                f"이번 {title} 사안의 배경에는 오랜 기간 누적된 복합적 요인들이 작용하고 있습니다.",
+                "전문가들은 이번 변화가 단기적 현상이 아닌 구조적 전환점이 될 것으로 전망합니다.",
+                "관련 기관과 이해관계자들은 신속한 대응 방안 마련에 나서고 있습니다.",
+                "업계 전반에 걸친 파급효과가 예상되며, 지속적인 모니터링이 필요합니다.",
+                "이번 사안을 계기로 관련 제도와 정책의 전면적인 재검토가 이루어질 것으로 보입니다.",
+            ],
+        }
+        extras = extras_by_dur.get(dur_key, [])
+
+        scripts_data = [
+            ("정보형",
+             f"안녕하세요. 오늘의 주요 뉴스입니다. {body}",
+             " 전문가들은 이번 사안을 면밀히 주시하고 있습니다. 앞으로의 상황을 계속 전해드리겠습니다."),
+            ("감성형",
+             f"여러분, 오늘 꼭 알아야 할 소식이 있습니다. {body}",
+             " 이 변화가 우리 모두에게 어떤 의미인지, 함께 생각해봐요."),
+            ("자극형",
+             f"지금 바로 주목해야 할 뉴스입니다! {body}",
+             " 이걸 모르면 뒤처집니다. 지금 바로 확인하세요!"),
+        ]
+
+        results = []
+        for ver, (style, opening, closing) in enumerate(scripts_data, 1):
+            text = opening
+            for extra in extras:
+                if len(text + closing) >= min_c:
+                    break
+                text += " " + extra
+            # 여전히 부족하면 패딩 반복
+            padding_pool = _PADDING_KO.get(dur_key, [])
+            idx = 0
+            while len(text + closing) < min_c and padding_pool:
+                text += " " + padding_pool[idx % len(padding_pool)]
+                idx += 1
+            text += closing
+            if len(text) > max_c:
+                text = text[:max_c]
+            results.append(ScriptVersion(version=ver, style=style, script=text, word_count=len(text)))
+        return results
+
+    else:
+        min_c = cfg["en"]["min_words"]
+        max_c = cfg["en"]["max_words"]
+
+        extras_by_dur = {
+            "20s": [],
+            "30s": [
+                f"Experts say this development around {title} will have significant implications.",
+                "An official statement from relevant authorities is expected soon.",
+            ],
+            "1min": [
+                f"The background to the {title} situation involves a complex set of long-building factors.",
+                "Experts view this as a structural turning point rather than a temporary phenomenon.",
+                "Relevant institutions and stakeholders are working urgently on response strategies.",
+                "Ripple effects across the broader industry are anticipated, requiring close monitoring.",
+                "This event is expected to trigger a comprehensive review of related policies and practices.",
+            ],
+        }
+        extras = extras_by_dur.get(dur_key, [])
+
+        scripts_data = [
+            ("정보형",
+             f"Here is today's top story. {body}",
+             " Experts are closely monitoring the situation. We will continue to follow this story."),
+            ("감성형",
+             f"This is a story that matters to all of us. {body}",
+             " Let us reflect together on what this means for our future."),
+            ("자극형",
+             f"You need to hear this right now! {body}",
+             " Don't be left behind — stay informed and act now!"),
+        ]
+
+        results = []
+        for ver, (style, opening, closing) in enumerate(scripts_data, 1):
+            text = opening
+            for extra in extras:
+                if _count(text + closing, "en") >= min_c:
+                    break
+                text += " " + extra
+            padding_pool = _PADDING_EN.get(dur_key, [])
+            idx = 0
+            while _count(text + closing, "en") < min_c and padding_pool:
+                text += " " + padding_pool[idx % len(padding_pool)]
+                idx += 1
+            text += closing
+            results.append(ScriptVersion(version=ver, style=style, script=text, word_count=len(text)))
+        return results
 
 
 # ---------------------------------------------------------------------------
@@ -361,6 +454,11 @@ async def generate_scripts(
     """뉴스 요약 스크립트 3가지 버전을 생성합니다."""
     logger.info("Script generation start - news_id=%s, duration=%s, language=%s",
                 news_id, duration, language)
+
+    # use_ollama=False면 즉시 폴백 (빠름)
+    if not settings.use_ollama:
+        logger.info("Ollama 비활성화 - 즉시 폴백 사용")
+        return _fallback_scripts(title, content, duration, language)
 
     try:
         async with httpx.AsyncClient(timeout=3.0) as client:

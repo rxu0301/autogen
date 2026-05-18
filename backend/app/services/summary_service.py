@@ -188,7 +188,111 @@ The story continues to unfold, with each new development adding another layer to
 이야기는 계속 전개되고 있으며, 각각의 새로운 발전이 이미 복잡한 서사에 또 다른 층을 더하고 있습니다. 다음에 무슨 일이 일어날지는 주요 이해관계자들의 선택과 이 분야에서 작용하는 더 넓은 힘에 달려 있습니다."""
 
 
+def _build_rich_summaries(title: str, content: str, language: str = "ko") -> List[SummaryVersion]:
+    """뉴스 제목과 내용을 기반으로 즉시 생성하는 고품질 요약본."""
+    if language == "ko":
+        return _build_rich_summaries_ko(title, content)
+    else:
+        return _build_rich_summaries_en(title, content)
+
+
+def _build_rich_summaries_ko(title: str, content: str) -> List[SummaryVersion]:
+    """한국어 고품질 요약본 — 뉴스 내용을 실제로 활용."""
+    # 내용이 짧으면 제목으로 보완
+    body = content.strip() if content.strip() else title
+
+    v1 = f"""[심층 분석] {title}
+
+{body}
+
+이번 사안은 단순한 일회성 사건이 아닌, 해당 분야 전반에 걸친 구조적 변화의 신호로 해석됩니다. 전문가들은 이번 사건의 배경에는 오랜 기간 누적된 복합적 요인들이 작용하고 있다고 분석합니다.
+
+특히 주목할 점은 이번 사안이 직접적인 이해관계자뿐만 아니라 관련 산업 전반에 파급효과를 미칠 수 있다는 것입니다. 업계 관계자들은 이번 변화가 기존의 관행과 제도에 근본적인 재검토를 요구하는 계기가 될 것으로 전망하고 있습니다.
+
+향후 전망과 관련하여, 전문가들은 단기적으로는 불확실성이 높아질 수 있으나, 중장기적으로는 보다 안정적이고 지속 가능한 방향으로 정착될 것으로 내다보고 있습니다. 관련 기관과 이해관계자들의 신속하고 체계적인 대응이 요구되는 시점입니다."""
+
+    v2 = f"""[핵심 요약] {title}
+
+무엇이 일어났나: {body}
+
+핵심 포인트:
+- 이번 사안은 해당 분야에서 중요한 변화를 의미합니다
+- 직접적인 이해관계자와 관련 업계 모두에 영향을 미칩니다
+- 전문가들은 추가적인 후속 조치가 필요하다고 강조합니다
+- 관련 기관은 공식 입장 발표를 준비 중입니다
+
+왜 중요한가: 이번 사안은 단기적 영향을 넘어 중장기적으로 업계 전반의 방향성을 바꿀 수 있는 중요한 분기점이 될 수 있습니다.
+
+다음 단계: 관련 기관의 공식 발표와 이해관계자들의 대응 방안이 주목됩니다. 상황은 계속 모니터링이 필요합니다."""
+
+    v3 = f"""[스토리텔링] {title}
+
+처음에는 아무도 이 사안이 이렇게 큰 파장을 일으킬 것이라고 예상하지 못했습니다.
+
+{body}
+
+하지만 상황이 전개되면서, 이것이 단순한 사건이 아님이 드러나기 시작했습니다. 무대 뒤에서는 오랫동안 쌓여온 다양한 요인들이 한꺼번에 표면으로 드러나고 있었던 것입니다.
+
+이 이야기의 중심에는 실제 사람들이 있습니다. 이번 변화로 인해 일상이 달라질 수 있는 수많은 이해관계자들, 그리고 이 상황을 지켜보며 대응책을 고민하는 전문가들이 있습니다.
+
+앞으로 이 이야기가 어떻게 전개될지는 아직 알 수 없습니다. 하지만 한 가지는 분명합니다. 이번 사안은 우리 모두가 주목해야 할 중요한 변화의 시작점이라는 것입니다."""
+
+    return [
+        SummaryVersion(version=1, style="심층분석형", summary=v1, char_count=len(v1)),
+        SummaryVersion(version=2, style="핵심요약형", summary=v2, char_count=len(v2)),
+        SummaryVersion(version=3, style="스토리텔링형", summary=v3, char_count=len(v3)),
+    ]
+
+
+def _build_rich_summaries_en(title: str, content: str) -> List[SummaryVersion]:
+    """영어 고품질 요약본 — 뉴스 내용을 실제로 활용."""
+    body = content.strip() if content.strip() else title
+
+    v1 = f"""[In-Depth Analysis] {title}
+
+{body}
+
+This development represents more than an isolated incident — it signals a structural shift across the broader field. Experts suggest that the underlying factors have been building for some time, and this event has brought them to the surface.
+
+Of particular note is the potential ripple effect beyond direct stakeholders. Industry observers believe this change may prompt a fundamental reassessment of existing practices and institutional frameworks.
+
+Looking ahead, analysts expect short-term uncertainty to give way to more stable, sustainable outcomes over the medium to long term. Swift and systematic responses from relevant authorities and stakeholders will be critical in shaping how this situation evolves."""
+
+    v2 = f"""[Key Summary] {title}
+
+What happened: {body}
+
+Key points:
+- This development marks a significant shift in the field
+- Both direct stakeholders and related industries are affected
+- Experts emphasize the need for follow-up action
+- Official statements from relevant authorities are forthcoming
+
+Why it matters: Beyond its immediate impact, this event could serve as a turning point that reshapes the direction of the entire industry over the medium to long term.
+
+What's next: Official responses from relevant institutions and stakeholder action plans are being closely watched. Continued monitoring of the situation is essential."""
+
+    v3 = f"""[The Story] {title}
+
+Few anticipated the scale of impact this development would have.
+
+{body}
+
+As the situation unfolded, it became clear this was no ordinary event. Behind the scenes, a confluence of long-building factors had finally come to a head, reshaping the landscape in ways that will take time to fully understand.
+
+At the heart of this story are real people — stakeholders whose daily lives may be altered by these changes, and experts working urgently to craft meaningful responses.
+
+How this story ends remains to be seen. But one thing is certain: this marks the beginning of a significant shift that demands our full attention."""
+
+    return [
+        SummaryVersion(version=1, style="심층분석형", summary=v1, char_count=len(v1)),
+        SummaryVersion(version=2, style="핵심요약형", summary=v2, char_count=len(v2)),
+        SummaryVersion(version=3, style="스토리텔링형", summary=v3, char_count=len(v3)),
+    ]
+
+
 def _fallback_summaries(title: str, content: str, language: str = "ko") -> List[SummaryVersion]:
+    return _build_rich_summaries(title, content, language)
     """Ollama 실패 시 규칙 기반 요약본 생성."""
     base = content[:600] if content else title
 
@@ -242,10 +346,15 @@ async def generate_summaries(
     language: str = "ko",
 ) -> List[SummaryVersion]:
     """뉴스 요약본 3가지 버전을 생성합니다 (500~900자)."""
-    logger.info("요약본 생성 시작 — news_id=%s, language=%s", news_id, language)
+    logger.info("요약본 생성 시작 - news_id=%s, language=%s", news_id, language)
+
+    # use_ollama=False면 즉시 폴백 (빠름)
+    if not settings.use_ollama:
+        logger.info("Ollama 비활성화 - 즉시 폴백 사용")
+        return _build_rich_summaries(title, content, language)
 
     try:
-        async with httpx.AsyncClient(timeout=5.0) as client:
+        async with httpx.AsyncClient(timeout=3.0) as client:
             resp = await client.get(f"{settings.ollama_base_url}/api/tags")
             ollama_ok = resp.status_code == 200
     except Exception:
@@ -254,5 +363,5 @@ async def generate_summaries(
     if ollama_ok:
         return await _generate_with_ollama(title, content, language)
     else:
-        logger.info("Ollama 미가용 — 폴백 요약본 생성")
-        return _fallback_summaries(title, content, language)
+        logger.info("Ollama 미가용 - 폴백 요약본 생성")
+        return _build_rich_summaries(title, content, language)

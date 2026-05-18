@@ -12,8 +12,11 @@ class Settings(BaseSettings):
 
     # Ollama
     ollama_base_url: str = "http://localhost:11434"
-    ollama_model: str = "qwen3.5:4b"   # llama3(8B)보다 절반 크기 → 2~3배 빠름
-    ollama_timeout: int = 60  # seconds (120 → 60으로 단축)
+    ollama_model: str = "qwen3.5:4b"
+    ollama_timeout: int = 60
+
+    # Ollama LLM 사용 여부 — False로 설정하면 즉시 폴백 사용 (빠름)
+    use_ollama: bool = False
 
     # 뉴스 API — 네이버 뉴스 (한국어 뉴스 최적)
     naver_client_id: str = ""
