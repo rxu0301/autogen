@@ -27,10 +27,10 @@ async function bootstrap() {
 
   // Swagger / OpenAPI documentation
   const swaggerConfig = new DocumentBuilder()
-    .setTitle('Shortform BFF API')
-    .setDescription('Backend for Frontend — proxies requests to the FastAPI content service')
-    .setVersion('1.0')
-    .addTag('content', '콘텐츠 생성 및 검색')
+    .setTitle('뉴스 숏폼 에이전트 BFF API')
+    .setDescription('뉴스 검색 · 스크립트 생성 · 썸네일 프롬프트 생성 · 라이브러리 관리')
+    .setVersion('2.0')
+    .addTag('news', '뉴스 검색 및 콘텐츠 생성')
     .addTag('health', '헬스 체크')
     .build();
   const document = SwaggerModule.createDocument(app, swaggerConfig);

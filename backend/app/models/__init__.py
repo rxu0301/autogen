@@ -1,1 +1,1 @@
-# Pydantic models package
+"""모델 패키지."""

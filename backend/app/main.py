@@ -5,30 +5,30 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.api.content import router as content_router
+from app.api.content import router as news_router
 
 logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Application startup / shutdown lifecycle."""
     logger.info(
-        "Starting Shortform Content Agent API "
+        "뉴스 요약 & 썸네일 프롬프트 생성 API 시작 "
         f"[env={settings.app_env}, model={settings.ollama_model}]"
     )
     yield
-    logger.info("Shutting down Shortform Content Agent API")
+    logger.info("뉴스 요약 & 썸네일 프롬프트 생성 API 종료")
 
 
 app = FastAPI(
-    title="Shortform Content Agent API",
+    title="뉴스 숏폼 에이전트 API",
     description=(
-        "숏폼 콘텐츠 생성 에이전트 — Ollama 로컬 LLM + Pinecone + ChromaDB\n\n"
-        "콘텐츠 생성 요청을 받아 Ollama LLM으로 숏폼 콘텐츠를 생성하고, "
-        "벡터 DB에 저장·검색하는 API 서버입니다."
+        "주제를 입력하면 RAG로 최신 뉴스 3개를 검색하고,\n"
+        "선택한 뉴스를 20초/30초/1분 분량의 요약 스크립트(3가지 버전)로 생성하며,\n"
+        "썸네일 이미지 생성 프롬프트(3가지 버전)를 제공합니다.\n"
+        "결과는 라이브러리에 저장되어 해시태그별로 조회할 수 있습니다."
     ),
-    version="1.0.0",
+    version="2.0.0",
     lifespan=lifespan,
 )
 
@@ -37,7 +37,7 @@ app = FastAPI(
 # ---------------------------------------------------------------------------
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origins,
+    allow_origins=settings.cors_origins_list,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -46,36 +46,35 @@ app.add_middleware(
 # ---------------------------------------------------------------------------
 # Routers
 # ---------------------------------------------------------------------------
-app.include_router(content_router, prefix="/api/v1")
+app.include_router(news_router, prefix="/api/v1")
 
 
 # ---------------------------------------------------------------------------
 # Root & health check
 # ---------------------------------------------------------------------------
 
-@app.get("/", tags=["root"], summary="API 루트")
+@app.get("/", tags=["root"])
 async def root():
-    """API 서버 기본 정보를 반환합니다."""
     return {
-        "service": "Shortform Content Agent API",
-        "version": "1.0.0",
+        "service": "뉴스 숏폼 에이전트 API",
+        "version": "2.0.0",
         "docs": "/docs",
-        "health": "/health",
     }
 
 
-@app.get("/health", tags=["health"], summary="서버 헬스 체크")
-async def health_check():
-    """서버 상태를 확인합니다. Ollama 연결 여부도 함께 반환합니다."""
-    from app.services.ollama_service import is_ollama_available
+@app.get("/health", tags=["health"])
+async def health():
+    import httpx
+    ollama_ok = False
+    try:
+        async with httpx.AsyncClient(timeout=3.0) as client:
+            resp = await client.get(f"{settings.ollama_base_url}/api/tags")
+            ollama_ok = resp.status_code == 200
+    except Exception:
+        pass
 
-    ollama_ok = await is_ollama_available()
     return {
         "status": "ok",
-        "env": settings.app_env,
-        "ollama": {
-            "available": ollama_ok,
-            "base_url": settings.ollama_base_url,
-            "model": settings.ollama_model,
-        },
+        "ollama": "available" if ollama_ok else "unavailable",
+        "model": settings.ollama_model,
     }

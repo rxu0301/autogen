@@ -1,146 +1,403 @@
 import React, { useState } from 'react';
-import ContentForm from './components/ContentForm';
-import ContentResult from './components/ContentResult';
-import { generateContent } from './api/content';
-import { ContentRequest, ContentResponse, ApiError } from './types/content';
+import NewsSearch from './components/NewsSearch';
+import NewsList from './components/NewsList';
+import LanguageSelector from './components/LanguageSelector';
+import SummaryGenerator from './components/SummaryGenerator';
+import SummaryResult from './components/SummaryResult';
+import ScriptGenerator from './components/ScriptGenerator';
+import ScriptResult from './components/ScriptResult';
+import ThumbnailResult from './components/ThumbnailResult';
+import Library from './components/Library';
+import {
+  searchNews,
+  generateSummary,
+  generateScript,
+  generateThumbnail,
+  saveResult,
+} from './api/content';
+import {
+  NewsItem,
+  SummaryVersion,
+  ScriptVersion,
+  ThumbnailPrompt,
+} from './types/content';
 
-const styles = {
-  page: {
-    minHeight: '100vh',
-    background: 'linear-gradient(135deg, #f0f4ff 0%, #faf5ff 100%)',
-    padding: '40px 16px 80px',
-    fontFamily:
-      "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
-  },
-  container: {
-    maxWidth: 680,
-    margin: '0 auto',
-  },
-  header: {
-    marginBottom: 32,
-    textAlign: 'center' as const,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: 800,
-    color: '#1e1b4b',
-    margin: '0 0 8px',
-    letterSpacing: '-0.02em',
-  },
-  subtitle: {
-    fontSize: 15,
-    color: '#6b7280',
-    margin: 0,
-    lineHeight: 1.5,
-  },
-  card: {
-    background: '#fff',
-    borderRadius: 16,
-    padding: '28px 32px',
-    boxShadow:
-      '0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(99,102,241,0.08)',
-    border: '1px solid rgba(99,102,241,0.1)',
-  },
-  errorBox: {
-    marginTop: 16,
-    padding: '12px 16px',
-    background: '#fef2f2',
-    borderRadius: 10,
-    color: '#b91c1c',
-    fontSize: 14,
-    border: '1px solid #fecaca',
-    display: 'flex',
-    alignItems: 'flex-start',
-    gap: 8,
-  },
-  errorIcon: {
-    flexShrink: 0,
-    marginTop: 1,
-  },
-  loadingOverlay: {
-    marginTop: 24,
-    padding: '32px',
-    textAlign: 'center' as const,
-    color: '#6b7280',
-    fontSize: 14,
-  },
-  spinner: {
-    display: 'inline-block',
-    width: 24,
-    height: 24,
-    border: '3px solid #e5e7eb',
-    borderTopColor: '#6366f1',
-    borderRadius: '50%',
-    animation: 'spin 0.8s linear infinite',
-    marginBottom: 12,
-  },
-  footer: {
-    marginTop: 40,
-    textAlign: 'center' as const,
-    fontSize: 12,
-    color: '#d1d5db',
-  },
-};
+type Tab = 'create' | 'library';
 
-// Inject keyframe animation for spinner
-if (typeof document !== 'undefined') {
-  const styleEl = document.createElement('style');
-  styleEl.textContent = `@keyframes spin { to { transform: rotate(360deg); } }`;
-  document.head.appendChild(styleEl);
+// 단계 인덱스 (진행 표시용)
+const STEPS = [
+  '주제 입력',
+  '뉴스 선택',
+  '언어 선택',
+  '요약본',
+  '스크립트',
+  '썸네일',
+];
+
+function Card({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div style={{
+      background: '#fff', borderRadius: 14, padding: '20px 22px',
+      boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
+      border: '1px solid rgba(99,102,241,0.1)', marginBottom: 16,
+    }}>
+      <div style={{ fontSize: 14, fontWeight: 700, color: '#374151', marginBottom: 14 }}>
+        {label}
+      </div>
+      {children}
+    </div>
+  );
 }
 
 export default function App() {
-  const [result, setResult] = useState<ContentResponse | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [tab, setTab] = useState<Tab>('create');
 
-  const handleSubmit = async (req: ContentRequest) => {
-    setLoading(true);
-    setError(null);
-    setResult(null);
+  const [topic, setTopic] = useState('');
+  const [newsList, setNewsList] = useState<NewsItem[]>([]);
+  const [filteredCount, setFilteredCount] = useState(0);
+  const [selectedNews, setSelectedNews] = useState<NewsItem | null>(null);
+  const [language, setLanguage] = useState<'ko' | 'en'>('ko');
+  const [duration, setDuration] = useState<'20초' | '30초' | '1분'>('30초');
+
+  const [summaryVersions, setSummaryVersions] = useState<SummaryVersion[]>([]);
+  const [selectedSummary, setSelectedSummary] = useState<SummaryVersion | null>(null);
+
+  const [scriptVersions, setScriptVersions] = useState<ScriptVersion[]>([]);
+  const [selectedScript, setSelectedScript] = useState<ScriptVersion | null>(null);
+
+  const [thumbnailPrompts, setThumbnailPrompts] = useState<ThumbnailPrompt[]>([]);
+
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [summaryLoading, setSummaryLoading] = useState(false);
+  const [scriptLoading, setScriptLoading] = useState(false);
+  const [thumbnailLoading, setThumbnailLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  const [error, setError] = useState('');
+
+  // 현재 진행 단계 계산
+  const currentStep = (() => {
+    if (thumbnailPrompts.length > 0) return 5;
+    if (scriptVersions.length > 0) return 4;
+    if (summaryVersions.length > 0) return 3;
+    if (selectedNews) return 2;
+    if (newsList.length > 0) return 1;
+    return 0;
+  })();
+
+  // ---------------------------------------------------------------------------
+
+  const handleSearch = async (t: string) => {
+    setTopic(t);
+    setError('');
+    setSearchLoading(true);
+    setNewsList([]);
+    setFilteredCount(0);
+    setSelectedNews(null);
+    setSummaryVersions([]);
+    setSelectedSummary(null);
+    setScriptVersions([]);
+    setSelectedScript(null);
+    setThumbnailPrompts([]);
+    setSaved(false);
     try {
-      const res = await generateContent(req);
-      setResult(res);
+      const res = await searchNews({ topic: t });
+      setNewsList(res.news);
+      setFilteredCount(res.filtered_count ?? 0);
     } catch (e: unknown) {
-      const apiErr = e as ApiError;
-      setError(apiErr?.message || '오류가 발생했습니다.');
+      setError((e as { message?: string }).message || '뉴스 검색 중 오류가 발생했습니다.');
     } finally {
-      setLoading(false);
+      setSearchLoading(false);
     }
   };
 
+  const handleSelectNews = (item: NewsItem) => {
+    setSelectedNews(item);
+    setSummaryVersions([]);
+    setSelectedSummary(null);
+    setScriptVersions([]);
+    setSelectedScript(null);
+    setThumbnailPrompts([]);
+    setSaved(false);
+  };
+
+  const handleGenerateSummary = async () => {
+    if (!selectedNews) return;
+    setError('');
+    setSummaryLoading(true);
+    setSummaryVersions([]);
+    setSelectedSummary(null);
+    try {
+      const res = await generateSummary({
+        news_id: selectedNews.id,
+        news_title: selectedNews.title,
+        news_content: selectedNews.summary,
+        language,
+      });
+      setSummaryVersions(res.versions);
+    } catch (e: unknown) {
+      setError((e as { message?: string }).message || '요약본 생성 중 오류가 발생했습니다.');
+    } finally {
+      setSummaryLoading(false);
+    }
+  };
+
+  const handleGenerateScript = async () => {
+    if (!selectedNews) return;
+    setError('');
+    setScriptLoading(true);
+    setScriptVersions([]);
+    setSelectedScript(null);
+    setThumbnailPrompts([]);
+    setSaved(false);
+    try {
+      const res = await generateScript({
+        news_id: selectedNews.id,
+        news_title: selectedNews.title,
+        news_content: selectedNews.summary,
+        duration,
+        language,
+      });
+      setScriptVersions(res.versions);
+    } catch (e: unknown) {
+      setError((e as { message?: string }).message || '스크립트 생성 중 오류가 발생했습니다.');
+    } finally {
+      setScriptLoading(false);
+    }
+  };
+
+  const handleGenerateThumbnail = async () => {
+    if (!selectedNews || !selectedScript) return;
+    setError('');
+    setThumbnailLoading(true);
+    setThumbnailPrompts([]);
+    setSaved(false);
+    try {
+      const res = await generateThumbnail({
+        news_id: selectedNews.id,
+        news_title: selectedNews.title,
+        selected_script: selectedScript.script,
+        hashtags: selectedNews.hashtags,
+      });
+      setThumbnailPrompts(res.prompts);
+    } catch (e: unknown) {
+      setError((e as { message?: string }).message || '썸네일 프롬프트 생성 중 오류가 발생했습니다.');
+    } finally {
+      setThumbnailLoading(false);
+    }
+  };
+
+  const handleSave = async () => {
+    if (!selectedNews || !selectedScript || thumbnailPrompts.length === 0) return;
+    setSaving(true);
+    setError('');
+    try {
+      await saveResult({
+        topic,
+        news: selectedNews,
+        selected_script: selectedScript,
+        duration,
+        thumbnail_prompts: thumbnailPrompts,
+        hashtags: selectedNews.hashtags,
+      });
+      setSaved(true);
+    } catch (e: unknown) {
+      setError((e as { message?: string }).message || '저장 중 오류가 발생했습니다.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleReset = () => {
+    setTopic(''); setNewsList([]); setSelectedNews(null);
+    setSummaryVersions([]); setSelectedSummary(null);
+    setScriptVersions([]); setSelectedScript(null);
+    setThumbnailPrompts([]); setSaved(false); setError('');
+  };
+
+  // ---------------------------------------------------------------------------
+
   return (
-    <div style={styles.page}>
-      <div style={styles.container}>
-        <div style={styles.header}>
-          <h1 style={styles.title}>🎬 숏폼 콘텐츠 에이전트</h1>
-          <p style={styles.subtitle}>
-            관심사와 목적을 입력하면 Ollama LLM이 바이럴 콘텐츠 기획을 생성합니다.
+    <div style={{
+      minHeight: '100vh',
+      background: 'linear-gradient(135deg, #f0f4ff 0%, #faf5ff 100%)',
+      padding: '32px 16px 80px',
+      fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
+    }}>
+      <div style={{ maxWidth: 780, margin: '0 auto' }}>
+
+        {/* 헤더 */}
+        <div style={{ textAlign: 'center', marginBottom: 28 }}>
+          <h1 style={{ fontSize: 26, fontWeight: 800, color: '#1e1b4b', margin: '0 0 6px', letterSpacing: '-0.02em' }}>
+            📰 뉴스 숏폼 에이전트
+          </h1>
+          <p style={{ fontSize: 14, color: '#6b7280', margin: 0 }}>
+            주제 입력 → 뉴스 선택 → 요약본 생성 → 스크립트 생성 → 썸네일 프롬프트
           </p>
         </div>
 
-        <div style={styles.card}>
-          <ContentForm onSubmit={handleSubmit} loading={loading} />
+        {/* 탭 */}
+        <div style={{ display: 'flex', marginBottom: 20, border: '1px solid #e5e7eb', borderRadius: 12, overflow: 'hidden', background: '#fff' }}>
+          {(['create', 'library'] as Tab[]).map((t) => (
+            <button key={t} onClick={() => setTab(t)} style={{
+              flex: 1, padding: '12px', border: 'none',
+              background: tab === t ? '#6366f1' : '#fff',
+              color: tab === t ? '#fff' : '#374151',
+              fontSize: 14, fontWeight: 600, cursor: 'pointer',
+            }}>
+              {t === 'create' ? '✍️ 콘텐츠 생성' : '📚 라이브러리'}
+            </button>
+          ))}
         </div>
 
-        {error && (
-          <div style={styles.errorBox}>
-            <span style={styles.errorIcon}>⚠️</span>
-            <span>{error}</span>
+        {tab === 'create' && (
+          <div>
+            {/* 진행 단계 표시 */}
+            <div style={{ display: 'flex', alignItems: 'center', marginBottom: 20, overflowX: 'auto', paddingBottom: 4 }}>
+              {STEPS.map((label, i) => (
+                <React.Fragment key={i}>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, minWidth: 52 }}>
+                    <div style={{
+                      width: 26, height: 26, borderRadius: '50%',
+                      background: i <= currentStep ? '#6366f1' : '#e5e7eb',
+                      color: i <= currentStep ? '#fff' : '#9ca3af',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: 11, fontWeight: 700,
+                      border: i === currentStep ? '2px solid #4338ca' : 'none',
+                    }}>
+                      {i < currentStep ? '✓' : i + 1}
+                    </div>
+                    <span style={{
+                      fontSize: 9, whiteSpace: 'nowrap',
+                      color: i <= currentStep ? '#4338ca' : '#9ca3af',
+                      fontWeight: i === currentStep ? 700 : 400,
+                    }}>
+                      {label}
+                    </span>
+                  </div>
+                  {i < STEPS.length - 1 && (
+                    <div style={{
+                      flex: 1, height: 2, margin: '0 3px', marginBottom: 16,
+                      background: i < currentStep ? '#6366f1' : '#e5e7eb',
+                    }} />
+                  )}
+                </React.Fragment>
+              ))}
+            </div>
+
+            {/* 에러 */}
+            {error && (
+              <div style={{ marginBottom: 16, padding: '12px 16px', background: '#fef2f2', borderRadius: 10, color: '#b91c1c', fontSize: 13, border: '1px solid #fecaca' }}>
+                ⚠️ {error}
+              </div>
+            )}
+
+            {/* ── 1단계: 주제 입력 ── */}
+            <Card label="1️⃣ 주제 입력">
+              <NewsSearch onSearch={handleSearch} loading={searchLoading} />
+            </Card>
+
+            {/* ── 2단계: 뉴스 선택 ── */}
+            {newsList.length > 0 && (
+              <Card label={`2️⃣ 뉴스 선택 — "${topic}" 관련 최신 뉴스`}>
+                <NewsList
+                  news={newsList}
+                  onSelect={handleSelectNews}
+                  selectedId={selectedNews?.id}
+                  filteredCount={filteredCount}
+                />
+              </Card>
+            )}
+
+            {/* ── 3단계: 언어 선택 ── */}
+            {selectedNews && (
+              <Card label="3️⃣ 언어 선택">
+                <LanguageSelector language={language} onChange={setLanguage} />
+              </Card>
+            )}
+
+            {/* ── 4단계: 요약본 생성 ── */}
+            {selectedNews && (
+              <Card label="4️⃣ 뉴스 요약본 생성">
+                <SummaryGenerator onGenerate={handleGenerateSummary} loading={summaryLoading} />
+              </Card>
+            )}
+
+            {/* ── 요약본 결과 ── */}
+            {summaryVersions.length > 0 && (
+              <Card label="📄 뉴스 요약본 결과">
+                <SummaryResult
+                  versions={summaryVersions}
+                  onSelect={setSelectedSummary}
+                  selectedVersion={selectedSummary?.version}
+                />
+              </Card>
+            )}
+
+            {/* ── 5단계: 스크립트 생성 ── */}
+            {selectedNews && (
+              <Card label="5️⃣ 뉴스 스크립트 생성 (낭독용)">
+                <ScriptGenerator
+                  selected={duration}
+                  onChange={setDuration}
+                  onGenerate={handleGenerateScript}
+                  loading={scriptLoading}
+                />
+              </Card>
+            )}
+
+            {/* ── 스크립트 결과 ── */}
+            {scriptVersions.length > 0 && (
+              <Card label="🎙️ 뉴스 스크립트 결과">
+                <ScriptResult
+                  versions={scriptVersions}
+                  duration={duration}
+                  onSelect={setSelectedScript}
+                  selectedVersion={selectedScript?.version}
+                  onGenerateThumbnail={handleGenerateThumbnail}
+                  thumbnailLoading={thumbnailLoading}
+                />
+              </Card>
+            )}
+
+            {/* ── 6단계: 썸네일 프롬프트 ── */}
+            {thumbnailPrompts.length > 0 && (
+              <Card label="6️⃣ 썸네일 이미지 생성 프롬프트">
+                <ThumbnailResult
+                  prompts={thumbnailPrompts}
+                  onSave={handleSave}
+                  saving={saving}
+                  saved={saved}
+                />
+              </Card>
+            )}
+
+            {/* 다시 시작 */}
+            {newsList.length > 0 && (
+              <div style={{ textAlign: 'center', marginTop: 8 }}>
+                <button onClick={handleReset} style={{
+                  padding: '9px 20px', background: 'transparent', color: '#6b7280',
+                  border: '1px solid #e5e7eb', borderRadius: 8, fontSize: 13, cursor: 'pointer',
+                }}>
+                  🔄 처음부터 다시 시작
+                </button>
+              </div>
+            )}
           </div>
         )}
 
-        {loading && (
-          <div style={styles.loadingOverlay}>
-            <div style={styles.spinner} />
-            <div>콘텐츠를 생성하고 있습니다...</div>
+        {tab === 'library' && (
+          <div style={{ background: '#fff', borderRadius: 14, padding: '20px 22px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)', border: '1px solid rgba(99,102,241,0.1)' }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: '#374151', marginBottom: 16 }}>
+              📚 저장된 결과 라이브러리
+            </div>
+            <Library />
           </div>
         )}
 
-        {result && !loading && <ContentResult result={result} />}
-
-        <div style={styles.footer}>
-          Powered by Ollama · NestJS BFF · FastAPI
+        <div style={{ marginTop: 40, textAlign: 'center', fontSize: 12, color: '#d1d5db' }}>
+          뉴스 숏폼 에이전트 v2.2 · Ollama + ChromaDB
         </div>
       </div>
     </div>
