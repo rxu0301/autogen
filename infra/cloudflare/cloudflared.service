@@ -1,0 +1,23 @@
+# /etc/systemd/system/cloudflared.service
+#
+# 사용법:
+#   sudo cp cloudflared.service /etc/systemd/system/cloudflared.service
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable cloudflared
+#   sudo systemctl start cloudflared
+
+[Unit]
+Description=Cloudflare Tunnel (Ollama)
+After=network.target
+
+[Service]
+Type=simple
+User=root
+ExecStart=/usr/bin/cloudflared tunnel --config /etc/cloudflared/config.yml run
+Restart=on-failure
+RestartSec=5s
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,21 @@
+# /etc/cloudflared/config.yml
+#
+# 사용법:
+#   1. <YOUR_TUNNEL_ID> 를 실제 Tunnel ID로 교체
+#   2. ollama.mydomain.com 을 실제 도메인으로 교체
+#   3. sudo cp config.yml /etc/cloudflared/config.yml
+
+tunnel: <YOUR_TUNNEL_ID>
+credentials-file: /root/.cloudflared/<YOUR_TUNNEL_ID>.json
+
+ingress:
+  - hostname: ollama.mydomain.com
+    service: http://localhost:11434
+    originRequest:
+      noTLSVerify: false
+      connectTimeout: 30s
+      tcpKeepAlive: 30s
+      httpHostHeader: "ollama.mydomain.com"
+
+  # 나머지 요청 차단
+  - service: http_status:404

@@ -1,0 +1,15 @@
+# Ollama systemd override
+#
+# 사용법:
+#   sudo systemctl edit ollama
+#   아래 내용을 붙여넣기 후 저장
+#
+# 또는 직접 파일 생성:
+#   sudo mkdir -p /etc/systemd/system/ollama.service.d/
+#   sudo cp ollama.service.override /etc/systemd/system/ollama.service.d/override.conf
+#   sudo systemctl daemon-reload
+#   sudo systemctl restart ollama
+
+[Service]
+Environment="OLLAMA_HOST=0.0.0.0:11434"
+Environment="OLLAMA_ORIGINS=https://your-vercel-app.vercel.app,https://ollama.mydomain.com"
